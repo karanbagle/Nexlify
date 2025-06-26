@@ -21,3 +21,8 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 MIT License
+
+## Contributing
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
