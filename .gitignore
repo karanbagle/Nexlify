@@ -1,9 +1,17 @@
 # Compiled class file
 *.class
 
+# macOS
+.DS_Store
+
 # Log file
 *.log
 
+# Maven
+target/
+mvnw
+mvnw.cmd
+.mvn/
 # BlueJ files
 *.ctxt
 
