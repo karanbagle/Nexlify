@@ -2,8 +2,8 @@ package com.nexlify.loadbalancer.service;
 
 
 import com.nexlify.loadbalancer.model.ServiceNode;
-import org.testng.annotations.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class DependencyGraphTest {
     @Test
