@@ -19,11 +19,10 @@ public class DependencyGraph {
     }
 
     public ServiceNode getService(String serviceId) {
-        return graph.get(serviceId);
+        return graph.getServiceId();
     }
 
     public Map<String, ServiceNode> getGraph() {
         return graph;
     }
-
 }

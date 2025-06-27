@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nexlify Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <style>
+        #graphChart { max-height: 400px; width: 100%; }
+        #error { color: red; margin-top: 10px; }
+    </style>
+</head>
+<body>
+<h1>Nexlify Dependency Graph</h1>
+<canvas id="graphChart"></canvas>
+<div id="error"></div>
+<script>
+    let chart;
+    const ws = new WebSocket('ws://localhost:8080/ws/dashboard');
+    ws.onopen = function() {
+        console.log('WebSocket connection established');
+        document.getElementById('error').textContent = 'Connected to WebSocket';
+        setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send('ping');
+                console.log('Sent ping');
+            }
+        }, 30000);
+    };
+    ws.onmessage = function(event) {
+        console.log('Raw data received:', event.data);
+        try {
+            if (event.data === 'pong') {
+                console.log('Received pong');
+                return;
+            }
+            const data = JSON.parse(event.data);
+            console.log('Parsed data:', data);
+            if (!data || Object.keys(data).length === 0) {
+                console.error('Empty or invalid data received');
+                document.getElementById('error').textContent = 'No data available';
+                return;
+            }
+            const labels = Object.keys(data);
+            const latencies = labels.map(id => data[id].latency || 0);
+            console.log('Labels:', labels, 'Latencies:', latencies);
+            const ctx = document.getElementById('graphChart').getContext('2d');
+            if (!chart) {
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Latency',
+                            data: latencies,
+                            borderColor: 'blue',
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+                console.log('Chart initialized');
+            } else {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = latencies;
+                chart.update();
+                console.log('Chart updated');
+            }
+        } catch (e) {
+            console.error('Error processing WebSocket data:', e);
+            document.getElementById('error').textContent = 'Error: ' + e.message;
+        }
+    };
+    ws.onerror = function(error) {
+        console.error('WebSocket error:', error);
+        document.getElementById('error').textContent = 'WebSocket connection failed';
+    };
+    ws.onclose = function() {
+        console.log('WebSocket connection closed');
+        document.getElementById('error').textContent = 'WebSocket connection closed';
+    };
+</script>
+</body>
+</html>
