@@ -68,13 +68,19 @@ public class DashboardWebSocketHandler extends TextWebSocketHandler {
         }
         Map<String, ServiceNode> graph = dependencyGraph.getGraph();
         logger.info("Broadcasting graph, services: {}", graph.keySet());
-        if (graph.isEmpty()) {
-            logger.warn("Graph is empty, no data to broadcast");
+        if (graph.isEmpty() || graph.values().stream().noneMatch(node -> !node.getMetrics().isEmpty())) {
+            logger.warn("Graph is empty or no metrics available, no data to broadcast");
             return;
         }
         Map<String, Map<String, Double>> simplifiedGraph = new HashMap<>();
         for (Map.Entry<String, ServiceNode> entry : graph.entrySet()) {
-            simplifiedGraph.put(entry.getKey(), entry.getValue().getMetrics());
+            if (!entry.getValue().getMetrics().isEmpty()) {
+                simplifiedGraph.put(entry.getKey(), entry.getValue().getMetrics());
+            }
+        }
+        if (simplifiedGraph.isEmpty()) {
+            logger.warn("No metrics to broadcast after filtering");
+            return;
         }
         String json = objectMapper.writeValueAsString(simplifiedGraph);
         logger.debug("Sending JSON: {}", json);

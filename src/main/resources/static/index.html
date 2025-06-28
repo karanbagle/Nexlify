@@ -23,9 +23,10 @@
                 ws.send('ping');
                 console.log('Sent ping');
             }
-        }, 30000);
+        }, 60000); // Reduced frequency to 60 seconds
     };
     ws.onmessage = function(event) {
+        console.time('messageHandler');
         console.log('Raw data received:', event.data);
         try {
             if (event.data === 'pong') {
@@ -57,19 +58,24 @@
                     },
                     options: {
                         responsive: true,
-                        maintainAspectRatio: false
+                        maintainAspectRatio: false,
+                        animation: {
+                            duration: 0 // Disable animation
+                        }
                     }
                 });
                 console.log('Chart initialized');
             } else {
                 chart.data.labels = labels;
                 chart.data.datasets[0].data = latencies;
-                chart.update();
+                chart.update(); // Instant update
                 console.log('Chart updated');
             }
         } catch (e) {
             console.error('Error processing WebSocket data:', e);
             document.getElementById('error').textContent = 'Error: ' + e.message;
+        } finally {
+            console.timeEnd('messageHandler');
         }
     };
     ws.onerror = function(error) {
