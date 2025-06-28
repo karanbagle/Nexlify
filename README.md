@@ -19,7 +19,9 @@ Nexlify uses multithreaded processing and a dynamic dependency graph to route tr
 
 ## Setup
 
-[To be added after development]
+1. Pull the image: \`docker pull karanbagle/nexlify:latest\`
+2. Run: \`docker run -p 8080:8080 karanbagle/nexlify:latest\`
+3. Access: \`http://localhost:8080\`
 
 ## Contributing
 
@@ -34,6 +36,11 @@ MIT License
 We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
+
+## Documentation
+
+- [Setup Guide](docs/setup.md)
+- [API Reference](docs/api.md)
 
 ## Reporting Issues
 
