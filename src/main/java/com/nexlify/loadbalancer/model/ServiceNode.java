@@ -24,7 +24,7 @@ public class ServiceNode implements Serializable {
     public boolean isHealthy() {
         double latency = metrics.getOrDefault("latency", 0.0);
         double errorRate = metrics.getOrDefault("errorRate", 0.0);
-        boolean isHealthy = latency < 100 && errorRate < 0.05 &&
+        boolean isHealthy = latency < 250 && errorRate < 0.1 && // Adjusted thresholds
                 dependencies.values().stream().allMatch(ServiceNode::isHealthy);
         logger.info("Service {}: latency={}, errorRate={}, isHealthy={}", serviceId, latency, errorRate, isHealthy);
         return isHealthy;

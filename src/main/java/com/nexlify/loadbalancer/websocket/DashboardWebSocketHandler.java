@@ -40,6 +40,7 @@ public class DashboardWebSocketHandler extends TextWebSocketHandler {
                 .filter(WebSocketSession::isOpen)
                 .map(WebSocketSession::getId)
                 .collect(Collectors.toList()));
+        broadcastInitialData(session); // Send initial data on connection
     }
 
     @Override
@@ -101,6 +102,37 @@ public class DashboardWebSocketHandler extends TextWebSocketHandler {
                 logger.warn("Session {} is closed, removing", session.getId());
                 sessions.remove(session);
             }
+        }
+    }
+
+    private void broadcastInitialData(WebSocketSession session) throws IOException {
+        if (dependencyGraph == null) {
+            logger.error("DependencyGraph is null, cannot send initial data");
+            return;
+        }
+        Map<String, ServiceNode> graph = dependencyGraph.getGraph();
+        logger.info("Sending initial graph to session {}, services: {}", session.getId(), graph.keySet());
+        if (graph.isEmpty() || graph.values().stream().noneMatch(node -> !node.getMetrics().isEmpty())) {
+            logger.warn("Initial graph is empty or no metrics available for session {}", session.getId());
+            return;
+        }
+        Map<String, Map<String, Double>> simplifiedGraph = new HashMap<>();
+        for (Map.Entry<String, ServiceNode> entry : graph.entrySet()) {
+            if (!entry.getValue().getMetrics().isEmpty()) {
+                simplifiedGraph.put(entry.getKey(), entry.getValue().getMetrics());
+            }
+        }
+        if (simplifiedGraph.isEmpty()) {
+            logger.warn("No initial metrics to send to session {}", session.getId());
+            return;
+        }
+        String json = objectMapper.writeValueAsString(simplifiedGraph);
+        logger.debug("Sending initial JSON to {}: {}", session.getId(), json);
+        if (session.isOpen()) {
+            session.sendMessage(new TextMessage(json));
+            logger.info("Sent initial data to session: {}", session.getId());
+        } else {
+            logger.warn("Session {} is closed, cannot send initial data", session.getId());
         }
     }
 }
