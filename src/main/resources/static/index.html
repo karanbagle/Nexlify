@@ -1,100 +1,161 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nexlify Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <style>
-        #graphChart { max-height: 400px; width: 100%; }
-        #error { color: red; margin-top: 10px; }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
-<h1>Nexlify Dependency Graph</h1>
-<canvas id="graphChart"></canvas>
-<div id="error"></div>
-<script>
-    let chart;
-    const ws = new WebSocket('ws://localhost:8080/ws/dashboard');
-    ws.onopen = function() {
-        console.log('WebSocket connection established');
-        document.getElementById('error').textContent = 'Connected to WebSocket';
-        setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send('ping');
-                console.log('Sent ping');
+<div id="root" class="p-4 bg-gray-100 min-h-screen"></div>
+
+<script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function Dashboard() {
+        const [services, setServices] = useState([]);
+        const [traffic, setTraffic] = useState({});
+
+        useEffect(() => {
+            const ws = new WebSocket('ws://localhost:8080/dashboard');
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                setServices(data.services || []);
+                setTraffic(data.traffic || {});
+            };
+            ws.onerror = (error) => console.error("WebSocket error:", error);
+            return () => ws.close();
+        }, []);
+
+        useEffect(() => {
+            if (services.length > 0) {
+                const svg = d3.select("#dependency-graph")
+                    .append("svg")
+                    .attr("width", 600)
+                    .attr("height", 400);
+                const simulation = d3.forceSimulation(services)
+                    .force("link", d3.forceLink().id(d => d.serviceId).distance(100))
+                    .force("charge", d3.forceManyBody().strength(-200))
+                    .force("center", d3.forceCenter(300, 200));
+
+                const links = services.flatMap(s =>
+                    (s.dependencies ? Array.from(s.dependencies.keySet()) : []).map(d => ({ source: s.serviceId, target: d }))
+                );
+                const link = svg.append("g")
+                    .selectAll("line")
+                    .data(links)
+                    .enter().append("line")
+                    .attr("stroke", "#999");
+
+                const node = svg.append("g")
+                    .selectAll("circle")
+                    .data(services)
+                    .enter().append("circle")
+                    .attr("r", 10)
+                    .attr("fill", d => d.healthy ? "green" : "red")
+                    .call(d3.drag()
+                        .on("start", dragstarted)
+                        .on("drag", dragged)
+                        .on("end", dragended));
+
+                simulation
+                    .nodes(services)
+                    .on("tick", ticked);
+
+                simulation.force("link")
+                    .links(links);
+
+                function ticked() {
+                    link
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+
+                    node
+                        .attr("cx", d => d.x)
+                        .attr("cy", d => d.y);
+                }
+
+                function dragstarted(event, d) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+
+                function dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+
+                function dragended(event, d) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }
             }
-        }, 60000); // Reduced frequency to 60 seconds
-    };
-    ws.onmessage = function(event) {
-        console.time('messageHandler');
-        console.log('Raw data received:', event.data);
-        try {
-            if (event.data === 'pong') {
-                console.log('Received pong');
-                return;
+        }, [services]);
+
+        useEffect(() => {
+            if (Object.keys(traffic).length > 0) {
+                const svg = d3.select("#traffic-chart")
+                    .append("svg")
+                    .attr("width", 600)
+                    .attr("height", 200);
+                const data = Object.entries(traffic).map(([key, value]) => ({ name: key, value: value }));
+                svg.selectAll("rect")
+                    .data(data)
+                    .enter().append("rect")
+                    .attr("x", (d, i) => i * 60)
+                    .attr("y", d => 150 - d.value * 1.5)
+                    .attr("width", 50)
+                    .attr("height", d => d.value * 1.5)
+                    .attr("fill", "steelblue");
+                svg.selectAll("text")
+                    .data(data)
+                    .enter().append("text")
+                    .attr("x", (d, i) => i * 60 + 25)
+                    .attr("y", d => 160 - d.value * 1.5)
+                    .text(d => d.value)
+                    .attr("text-anchor", "middle")
+                    .attr("fill", "white");
             }
-            const data = JSON.parse(event.data);
-            console.log('Parsed data:', data);
-            if (!data || Object.keys(data).length === 0) {
-                console.error('Empty or invalid data received');
-                document.getElementById('error').textContent = 'No data available';
-                return;
-            }
-            const labels = Object.keys(data);
-            const latencies = labels.map(id => data[id].latency || 0);
-            console.log('Labels:', labels, 'Latencies:', latencies);
-            const ctx = document.getElementById('graphChart').getContext('2d');
-            if (!chart) {
-                chart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Latency',
-                            data: latencies,
-                            borderColor: 'blue',
-                            fill: false
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        animation: {
-                            duration: 0 // Disable animation
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: { display: true, text: 'Latency (ms)' }
-                            },
-                            x: {
-                                title: { display: true, text: 'Service' }
-                            }
-                        }
-                    }
-                });
-                console.log('Chart initialized');
-            } else {
-                chart.data.labels = labels;
-                chart.data.datasets[0].data = latencies;
-                chart.update({ duration: 0 }); // Instant update
-                console.log('Chart updated');
-            }
-        } catch (e) {
-            console.error('Error processing WebSocket data:', e);
-            document.getElementById('error').textContent = 'Error: ' + e.message;
-        } finally {
-            console.timeEnd('messageHandler');
-        }
-    };
-    ws.onerror = function(error) {
-        console.error('WebSocket error:', error);
-        document.getElementById('error').textContent = 'WebSocket connection failed';
-    };
-    ws.onclose = function() {
-        console.log('WebSocket connection closed');
-        document.getElementById('error').textContent = 'WebSocket connection closed';
-    };
+        }, [traffic]);
+
+        return (
+            <div className="max-w-4xl mx-auto">
+                <h1 className="text-4xl font-bold text-blue-600 mb-6">Nexlify Dashboard</h1>
+                <div id="dependency-graph" className="mb-8"></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {services.map(service => (
+                        <div
+                            key={service.serviceId}
+                            className="p-6 bg-white rounded-lg shadow-lg flex items-center transition-all duration-300 hover:shadow-xl"
+                        >
+                                <span
+                                    className={`w-6 h-6 rounded-full mr-4 ${service.healthy ? 'bg-green-500' : 'bg-red-500'} transition-colors duration-300`}
+                                ></span>
+                            <div>
+                                <h2 className="text-xl font-semibold">{service.serviceId}</h2>
+                                <p className="text-gray-600">Latency: {service.metrics?.latency || 0}ms</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-6">
+                    <h2 className="text-2xl font-bold text-blue-600 mb-4">Traffic Distribution</h2>
+                    <div id="traffic-chart" className="h-64 bg-white rounded-lg shadow-lg p-4"></div>
+                </div>
+            </div>
+        );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Dashboard />);
 </script>
 </body>
 </html>
