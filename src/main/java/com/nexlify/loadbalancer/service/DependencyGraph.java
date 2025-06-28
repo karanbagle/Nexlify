@@ -14,11 +14,15 @@ public class DependencyGraph {
     private static final Logger logger = LoggerFactory.getLogger(DependencyGraph.class);
     private final Map<String, ServiceNode> graph = new ConcurrentHashMap<>();
 
-    public void registerService(String serviceId, String[] dependsOn, String url) {
-        logger.info("Registering service: {}, dependsOn: {}", serviceId, dependsOn);
-        ServiceNode node = graph.computeIfAbsent(serviceId, ServiceNode::new);
+    public void registerService(String serviceId, String[] dependsOn, String endpoint) {
+        logger.info("Registering service: {}, dependsOn: {}, endpoint: {}", serviceId, dependsOn, endpoint);
+        ServiceNode node = graph.computeIfAbsent(serviceId, k -> new ServiceNode(serviceId));
+        logger.info("Before setEndpoint, node.endpoint: {}", node.getEndpoint());
+        node.setEndpoint(endpoint != null ? endpoint : "http://localhost:808" + (graph.size() + 1));
+        logger.info("After setEndpoint, node.endpoint: {}", node.getEndpoint());
         for (String depId : dependsOn) {
-            ServiceNode depNode = graph.computeIfAbsent(depId, ServiceNode::new);
+            ServiceNode depNode = graph.computeIfAbsent(depId, k -> new ServiceNode(depId));
+            depNode.setEndpoint(depNode.getEndpoint() != null ? depNode.getEndpoint() : "http://localhost:808" + (graph.size() + 1));
             node.getDependencies().put(depId, depNode);
         }
         logger.info("Graph after registration: {}", graph.keySet());
