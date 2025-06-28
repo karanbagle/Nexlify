@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -13,7 +14,7 @@ public class DependencyGraph {
     private static final Logger logger = LoggerFactory.getLogger(DependencyGraph.class);
     private final Map<String, ServiceNode> graph = new ConcurrentHashMap<>();
 
-    public void registerService(String serviceId, String[] dependsOn) {
+    public void registerService(String serviceId, String[] dependsOn, String url) {
         logger.info("Registering service: {}, dependsOn: {}", serviceId, dependsOn);
         ServiceNode node = graph.computeIfAbsent(serviceId, ServiceNode::new);
         for (String depId : dependsOn) {
@@ -29,5 +30,9 @@ public class DependencyGraph {
 
     public Map<String, ServiceNode> getGraph() {
         return graph;
+    }
+
+    public Set<ServiceNode> getNodes() {
+        return Set.copyOf(graph.values()); // Thread-safe snapshot
     }
 }

@@ -29,7 +29,7 @@ public class LoadBalancerController {
     @PostMapping("/register")
     public void registerService(@RequestBody ServiceRegistrationRequest request) {
         logger.info("Registering service: {}, dependsOn: {}", request.getServiceId(), request.getDependsOn());
-        dependencyGraph.registerService(request.getServiceId(), request.getDependsOn());
+        dependencyGraph.registerService(request.getServiceId(), request.getDependsOn(), "http://localhost:8081");
         logger.info("Graph after registration: {}", dependencyGraph.getGraph().keySet());
     }
 

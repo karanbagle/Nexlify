@@ -15,9 +15,9 @@ public class Simulator implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        dependencyGraph.registerService("A", new String[]{"B"});
-        dependencyGraph.registerService("B", new String[]{"C"});
-        dependencyGraph.registerService("C", new String[]{});
+        dependencyGraph.registerService("A", new String[]{"B"}, "http://localhost:8081");
+        dependencyGraph.registerService("B", new String[]{"C"}, "http://localhost:8081");
+        dependencyGraph.registerService("C", new String[]{}, "http://localhost:8081");
         metricsProcessor.updateMetrics("A", 100.0, 0.01);
         metricsProcessor.updateMetrics("B", 200.0, 0.01);
         metricsProcessor.updateMetrics("C", 30.0, 0.02);

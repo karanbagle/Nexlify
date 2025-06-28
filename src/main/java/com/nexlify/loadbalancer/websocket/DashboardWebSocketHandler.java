@@ -6,22 +6,22 @@ import com.nexlify.loadbalancer.service.DependencyGraph;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
 
 @Component
 public class DashboardWebSocketHandler extends TextWebSocketHandler {
     private static final Logger logger = LoggerFactory.getLogger(DashboardWebSocketHandler.class);
-    private final List<WebSocketSession> sessions = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<WebSocketSession> sessions = new CopyOnWriteArrayList<>();
     private final DependencyGraph dependencyGraph;
     private final ObjectMapper objectMapper;
 
@@ -36,21 +36,13 @@ public class DashboardWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) throws IOException {
         logger.info("WebSocket connection established: {}", session.getId());
         sessions.add(session);
-        logger.info("Current open sessions: {}", sessions.stream()
-                .filter(WebSocketSession::isOpen)
-                .map(WebSocketSession::getId)
-                .collect(Collectors.toList()));
-        broadcastInitialData(session); // Send initial data on connection
+        broadcastInitialData(session);
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, org.springframework.web.socket.CloseStatus status) {
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         logger.info("WebSocket connection closed: {}, status: {}", session.getId(), status);
         sessions.remove(session);
-        logger.info("Current open sessions: {}", sessions.stream()
-                .filter(WebSocketSession::isOpen)
-                .map(WebSocketSession::getId)
-                .collect(Collectors.toList()));
     }
 
     @Override
@@ -62,44 +54,22 @@ public class DashboardWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    @Scheduled(fixedRate = 5000) // Update every 5 seconds
     public void broadcastGraph() throws IOException {
         if (dependencyGraph == null) {
             logger.error("DependencyGraph is null, cannot broadcast");
             return;
         }
-        Map<String, ServiceNode> graph = dependencyGraph.getGraph();
-        logger.info("Broadcasting graph, services: {}", graph.keySet());
-        if (graph.isEmpty() || graph.values().stream().noneMatch(node -> !node.getMetrics().isEmpty())) {
-            logger.warn("Graph is empty or no metrics available, no data to broadcast");
-            return;
-        }
-        Map<String, Map<String, Double>> simplifiedGraph = new HashMap<>();
-        for (Map.Entry<String, ServiceNode> entry : graph.entrySet()) {
-            if (!entry.getValue().getMetrics().isEmpty()) {
-                simplifiedGraph.put(entry.getKey(), entry.getValue().getMetrics());
-            }
-        }
-        if (simplifiedGraph.isEmpty()) {
-            logger.warn("No metrics to broadcast after filtering");
-            return;
-        }
-        String json = objectMapper.writeValueAsString(simplifiedGraph);
-        logger.debug("Sending JSON: {}", json);
-        List<String> openSessions = sessions.stream()
-                .filter(WebSocketSession::isOpen)
-                .map(WebSocketSession::getId)
-                .collect(Collectors.toList());
-        logger.info("Current open sessions: {}", openSessions);
-        if (openSessions.isEmpty()) {
-            logger.warn("No open sessions to broadcast to");
-            return;
-        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("services", dependencyGraph.getNodes());
+        data.put("traffic", getTrafficData());
+        String json = objectMapper.writeValueAsString(data);
+        logger.debug("Broadcasting JSON: {}", json);
         for (WebSocketSession session : sessions) {
             if (session.isOpen()) {
                 session.sendMessage(new TextMessage(json));
                 logger.info("Sent data to session: {}", session.getId());
             } else {
-                logger.warn("Session {} is closed, removing", session.getId());
                 sessions.remove(session);
             }
         }
@@ -110,29 +80,23 @@ public class DashboardWebSocketHandler extends TextWebSocketHandler {
             logger.error("DependencyGraph is null, cannot send initial data");
             return;
         }
-        Map<String, ServiceNode> graph = dependencyGraph.getGraph();
-        logger.info("Sending initial graph to session {}, services: {}", session.getId(), graph.keySet());
-        if (graph.isEmpty() || graph.values().stream().noneMatch(node -> !node.getMetrics().isEmpty())) {
-            logger.warn("Initial graph is empty or no metrics available for session {}", session.getId());
-            return;
-        }
-        Map<String, Map<String, Double>> simplifiedGraph = new HashMap<>();
-        for (Map.Entry<String, ServiceNode> entry : graph.entrySet()) {
-            if (!entry.getValue().getMetrics().isEmpty()) {
-                simplifiedGraph.put(entry.getKey(), entry.getValue().getMetrics());
-            }
-        }
-        if (simplifiedGraph.isEmpty()) {
-            logger.warn("No initial metrics to send to session {}", session.getId());
-            return;
-        }
-        String json = objectMapper.writeValueAsString(simplifiedGraph);
-        logger.debug("Sending initial JSON to {}: {}", session.getId(), json);
+        Map<String, Object> data = new HashMap<>();
+        data.put("services", dependencyGraph.getNodes());
+        data.put("traffic", getTrafficData());
+        String json = objectMapper.writeValueAsString(data);
         if (session.isOpen()) {
             session.sendMessage(new TextMessage(json));
             logger.info("Sent initial data to session: {}", session.getId());
         } else {
             logger.warn("Session {} is closed, cannot send initial data", session.getId());
         }
+    }
+
+    private Map<String, Integer> getTrafficData() {
+        Map<String, Integer> traffic = new HashMap<>();
+        for (ServiceNode node : dependencyGraph.getNodes()) {
+            traffic.put(node.getServiceId(), (int) (Math.random() * 100));
+        }
+        return traffic;
     }
 }
